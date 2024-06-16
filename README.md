@@ -8,7 +8,7 @@ Designed by [Agile Lab](https://www.agilelab.it/), witboost is a versatile platf
 
 This repository is part of our [Starter Kit](https://github.com/agile-lab-dev/witboost-starter-kit) meant to showcase witboost's integration capabilities and provide a "batteries-included" product.
 
-# IcePanel C4 Adapter
+# Tonic AI Adapter
 
 - [Overview](#overview)
 - [Building](#building)
@@ -19,15 +19,18 @@ This repository is part of our [Starter Kit](https://github.com/agile-lab-dev/wi
 
 ## Overview
 
-This project provides integration between Witboost and [Ice Panel](https://icepanel.io/) to automatically generate a C4 architectural diagram representing the entire ecosystem of Data Products and their internal implementation.
+This project provides integration between Witboost and [Tonic.AI](https://www.tonic.ai/) to automatically generate a synthetic output port starting from the real one. 
 
-<img src="https://github.com/agile-lab/IcePanelC4-Adapter/assets/1837799/82ba1f8c-a1a9-45f4-b232-3833f5a97ec6" alt="image" width="500"/>
+![image]()
+
+<img src="https://github.com/agile-lab/TonicAI-Adapter/assets/1837799/bf263496-075f-4152-9090-6cb9cabe479e" alt="image" width="500"/>
 
 ### Details
 
-In a C4 representation, the Data Product is a system. Ice Panel offers a multi-layer visualization where is also possible to explore multiple domains within the same layer, this is a perfect fit for a Data Mesh representation, because systems can be grouped in domains and then it is possible to zoom in each system ( Data Product ) to discover the inner architecture.
+Access control is required to protect real output ports. A consumer must request access and wait for approval.
+Witboost can automate the creation of a fake output port containing synthetic data, and this output port can be left without access management, so it will be super easy for a consumer to get a preview of the data and also start a prototype without waiting for its access granting to the real output port
 
-<img src="https://github.com/agile-lab/IcePanelC4-Adapter/assets/1837799/2d3563f7-739c-4a51-a414-fa339466cce0" alt="image"/>
+<img src="https://github.com/agile-lab/TonicAI-Adapter/assets/1837799/36c0e332-b4d3-4579-9170-dd11b8709b45" alt="image"/>
 
 
 ## Building
@@ -105,12 +108,12 @@ By default, the server binds to port 8091 on localhost. After it's up and runnin
 
 ## Env Variables
 
-In order to set the application some environmental variable must be injected:
-- LandscapeId: to define the IcePanle landscape ID where all the domains and data products will be created
-- IcePanel API Key: you can retrieve it from the organization setting panel of IcePanel
+In order to set the application, some environmental variables must be injected:
+- WorkspaceId: For this prototype, the workspace will be one, but potentially would be better to have one workspace for data product
+- TonicAI API Key: you can retrieve it from your account setting panel of Tonic.AI
 
 ```python
-landscapeId = os.getenv('IcePanelLandscapeId')
+workspaceId = os.getenv('WorkspaceId')
 apiKey = os.getenv('API_KEY')
 ```
 
