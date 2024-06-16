@@ -21,7 +21,6 @@ This repository is part of our [Starter Kit](https://github.com/agile-lab-dev/wi
 
 This project provides integration between Witboost and [Tonic.AI](https://www.tonic.ai/) to automatically generate a synthetic output port starting from the real one. 
 
-![image]()
 
 <img src="https://github.com/agile-lab/TonicAI-Adapter/assets/1837799/bf263496-075f-4152-9090-6cb9cabe479e" alt="image" width="500"/>
 
