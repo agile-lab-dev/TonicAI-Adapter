@@ -13,7 +13,7 @@ from pydantic import (
 )
 
 from src.models.constants import OPENMETADATA_SUPPORTED_DATATYPES
-from src.models.icepanel import *
+from src.models.tonic import *
 
 
 
@@ -55,10 +55,16 @@ class ConnectionTypeWorkload(StrEnum):
     HOUSEKEEPING = "HouseKeeping"
     DATAPIPELINE = "DataPipeline"
 
+class Masking(BaseModel):
+    generatorType: str
+    link: Optional[str] = None
+    specific: Optional[dict] = None
 
 class OpenMetadataColumn(BaseModel):
     name: str
     dataType: str
+    tags: Optional[List[OpenMetadataTagLabel]] = None
+    masking: Optional[Masking] = None
     dataLength: Optional[int] = None
     precision: Optional[int] = None
     scale: Optional[int] = None
@@ -120,28 +126,7 @@ class Component(BaseModel):
     specific: dict
     kind: ComponentKind
 
-    def toIcePanel(self, IcePaneldomainId, IcePanelDPId) -> ModelObject:
-        type = "app"
-        if self.kind == "storage":
-            type = "store"
-        return ModelObject(
-            caption=self.fullyQualifiedName or "",
-            description=self.description,
-            domainId=IcePaneldomainId,
-            external=False,
-            icon=None,  # Adjust this if you have a specific icon for the data product
-            id=self.id,
-            links={},  # Adjust this if there are specific links associated with the data product
-            name=self.name,
-            parentId=IcePanelDPId, 
-            parentIds=[],  # Adjust this if the data product has parents in the C4 model
-            status="live",  # Default to "live" if no status is provided
-            tagIds=[],  # Add tag IDs if necessary
-            teamIds=[],  # Add team IDs if necessary
-            technologies={},  # Add technologies if necessary
-            type=  type 
-        )
-
+    
 
 class OutputPort(Component):
     model_config = ConfigDict(extra="allow")
@@ -162,25 +147,7 @@ class OutputPort(Component):
     sampleData: Optional[dict] = None
     semanticLinking: List[dict]
 
-    def toIcePanel(self, IcePaneldomainId, IcePanelDPId) -> ModelObject:
-
-        return ModelObject(
-            caption=self.fullyQualifiedName or "",
-            description=self.description,
-            domainId=IcePaneldomainId,
-            external=False,
-            icon=None,  # Adjust this if you have a specific icon for the data product
-            id=self.id,
-            links={},  # Adjust this if there are specific links associated with the data product
-            name=self.name,
-            parentId=IcePanelDPId, 
-            parentIds=[],  # Adjust this if the data product has parents in the C4 model
-            status="live",  # Default to "live" if no status is provided
-            tagIds=[],  # Add tag IDs if necessary
-            teamIds=[],  # Add team IDs if necessary
-            technologies={},  # Add technologies if necessary
-            type="app"  # Type for the C4 model in IcePanel
-        )
+    
     
     @field_validator("kind")
     @classmethod
@@ -207,25 +174,6 @@ class Workload(Component):
     tags: List[OpenMetadataTagLabel]
     readsFrom: Optional[List[InputWorkload]] = None
 
-    def toIcePanel(self, IcePaneldomainId, IcePanelDPId) -> ModelObject:
-
-        return ModelObject(
-            caption=self.fullyQualifiedName or "",
-            description=self.description,
-            domainId=IcePaneldomainId,
-            external=False,
-            icon=None,  # Adjust this if you have a specific icon for the data product
-            id=self.id,
-            links={},  # Adjust this if there are specific links associated with the data product
-            name=self.name,
-            parentId=IcePanelDPId, 
-            parentIds=[],  # Adjust this if the data product has parents in the C4 model
-            status="live",  # Default to "live" if no status is provided
-            tagIds=[],  # Add tag IDs if necessary
-            teamIds=[],  # Add team IDs if necessary
-            technologies={},  # Add technologies if necessary
-            type="app"  # Type for the C4 model in IcePanel
-        )
 
 
     def __init__(self, **data):
@@ -287,25 +235,7 @@ class StorageArea(Component):
     storageType: Optional[str] = None
     tags: List[OpenMetadataTagLabel]
 
-    def toIcePanel(self, IcePaneldomainId, IcePanelDPId) -> ModelObject:
-
-        return ModelObject(
-            caption=self.fullyQualifiedName or "",
-            description=self.description,
-            domainId=IcePaneldomainId,
-            external=False,
-            icon=None,  # Adjust this if you have a specific icon for the data product
-            id=self.id,
-            links={},  # Adjust this if there are specific links associated with the data product
-            name=self.name,
-            parentId=IcePanelDPId, 
-            parentIds=[],  # Adjust this if the data product has parents in the C4 model
-            status="live",  # Default to "live" if no status is provided
-            tagIds=[],  # Add tag IDs if necessary
-            teamIds=[],  # Add team IDs if necessary
-            technologies={},  # Add technologies if necessary
-            type="store"  # Type for the C4 model in IcePanel
-        )
+   
 
     @field_validator("kind")
     @classmethod
@@ -381,25 +311,7 @@ class DataProduct(BaseModel):
     specific: dict
     components: List[Annotated[Component, BeforeValidator(parse_component)]]
 
-    def toIcePanel(self, IcePaneldomainId, rootId) -> ModelObject:
-
-        return ModelObject(
-            caption=self.fullyQualifiedName or "",
-            description=self.description,
-            domainId=IcePaneldomainId,
-            external=False,
-            icon=None,  # Adjust this if you have a specific icon for the data product
-            id=self.id,
-            links={},  # Adjust this if there are specific links associated with the data product
-            name=self.name,
-            parentId=rootId,  # Adjust this if the data product has a parent in the C4 model
-            parentIds=[],  # Adjust this if the data product has parents in the C4 model
-            status="live",  # Default to "live" if no status is provided
-            tagIds=[],  # Add tag IDs if necessary
-            teamIds=[],  # Add team IDs if necessary
-            technologies={},  # Add technologies if necessary
-            type="system"  # Type for the C4 model in IcePanel
-        )
+    
 
     def get_components_by_kind(self, kind: str) -> List[Component]:
         """

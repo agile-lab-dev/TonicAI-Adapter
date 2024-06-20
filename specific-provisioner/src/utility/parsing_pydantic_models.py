@@ -12,7 +12,7 @@ logger = get_logger()
 T = TypeVar('T', bound=BaseModel)
 
 
-def parse_yaml_with_model(yaml_data: dict | str, model: Type[T]) -> T | ValidationError:
+def parse_yaml_with_model(yaml_data: dict | str | list, model: Type[T]) -> T | ValidationError:
     """
     Parse YAML data using a Pydantic model.
 
@@ -61,7 +61,11 @@ def parse_yaml_with_model(yaml_data: dict | str, model: Type[T]) -> T | Validati
         else:
             yaml_dict = yaml_data
 
-        data = model(**yaml_dict)
+        data = None
+        if isinstance(yaml_data, list):
+            data = model.parse_obj(yaml_data)
+        elif isinstance(yaml_data, dict):
+            data = model(**yaml_dict)
         return data
     except ValueError as e:
         logger.error(f"Validation error: {e}")

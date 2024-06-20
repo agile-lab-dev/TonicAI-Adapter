@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from requests.auth import HTTPBasicAuth
 import requests
+import uuid
 
 import sys
 import os
@@ -30,7 +31,7 @@ from src.models.api_models import (
     ValidationStatus,
 )
 
-from src.models.icepanel import *
+from src.models.tonic import *
 from src.models.data_product_descriptor import *
 
 from src.utility.logger import get_logger
@@ -56,84 +57,117 @@ async def provision(
     Deploy a data product or a single component starting from a provisioning descriptor
     """
 
-    # get data from icepanel
-    (domains, modelObjects, modelConnections) = getIcePanelSituation()
+    # get data from tonic workspace
+    workspaceTables = getTablesFromWorkspace()
     
     dp = await unpack_provisioning_request(body)
     print("------------------DESCRIPTOR PARSED-----------------------------")
     print(dp)
-
-    # default domain in the organization data mesh and landscape [hWFggyCYwu5kun6fpsu7]
-    domainId= list(filter(lambda x: x.name == "Default domain", domains))[0].id
-    rootId=list(filter(lambda x: x.type == "root", modelObjects))[0].id
-   
-    icePanelDP = dp[0].toIcePanel(domainId, rootId)
     
-    matchedDP = list(filter(lambda x: x.name == icePanelDP.name, modelObjects))
-    dpId: str = ""
-    if len(matchedDP) == 1:
-        dpId = patch_component(matchedDP[0].id, icePanelDP)
-
-    else:
-        dpId = post_component(icePanelDP)    
-
-    
-    witboostCompToIcePanelComp: dict[str,str] = {}
-    for component in dp[0].components:
-        cdict: dict = component.dict()
-        icePanelObj = component.toIcePanel(domainId,dpId)
-        
-        if not icePanelObj == None:
-            matchedComponent = list(filter(lambda x: x.name == icePanelObj.name, modelObjects))
-            compId = ""
-            if len(matchedComponent) == 1:
-                compId = patch_component(matchedComponent[0].id, icePanelObj)                
-            else:
-                compId = post_component(icePanelObj)                
-
-            witboostCompToIcePanelComp[component.id] = compId
+    generators = getGenerators()
+    print("------------------GENERATORS-----------------------------")
+    for generator in generators.root:
+        print(generator.generatorId)
 
     for component in dp[0].components:
-        print("component type: " + str(component.kind))
-        cdict: dict = component.dict()
-
-        dependsOn = []
-        readsFrom = []
         if component.kind == "outputport":
+            cdict: dict = component.dict()
             rename_key(cdict['dataContract'], 'schema_', 'schema')
             outputport = OutputPort(**cdict)
-            dependsOn = outputport.dependsOn
+            tableComp = outputport.specific["table"]
+            schemaComp = outputport.specific["schema"]
+            
 
-        if component.kind == "workload":
-            workload = Workload(**cdict)
-            dependsOn = workload.dependsOn
-            readsFrom = workload.readsFrom
-        
-        processRelationships(component, dependsOn, dp[0].components, "dependsOn", witboostCompToIcePanelComp, modelConnections )
-        processRelationships(component, readsFrom, dp[0].components, "readsFrom", witboostCompToIcePanelComp, modelConnections )
+            for table in workspaceTables.tables:
+                if table.tableName == tableComp and table.schemaOfTable == schemaComp:
+                    #replacements = getTableReplacements(schemaComp, tableComp)
+                    columns = outputport.dataContract.schema_
+                    print(columns)
 
-    resp = SystemErr(error="Response not yet implemented")
+                    columnKeys = []
+                    sensitiveColumns = []
+                    replacements = []
+                    for column in columns:
+                        columnKeys.append(column.name)
+                        if column.tags != None:
+                            for tag in column.tags:
+                                if tag.tagFQN != None and ( tag.tagFQN == "PII" or tag.tagFQN == "Sensitive" ):
+                                    sensitiveColumns.append(column.name)
+                        
+                        if column.masking != None:
+                            #print(generators.root)
+                            for generator in generators.root:
+                                #print(generator.generatorId)
+                                #print(column.masking.generatorType)
+                                if generator.generatorId == (""+column.masking.generatorType + "Generator"):
+                                    print(" generator found: " + generator.generatorId)
+
+                                    replacement = buildReplacement(schemaComp, tableComp, column.name, generator.generatorId)
+                                    replacement.links[0].metadata = customizeMetadata(replacement.links[0].metadata, generator.generatorId, column)
+                                           
+                                    replacements.append(replacement)
+                                    print("new replacement")
+                                    print(replacement)
+                        else:
+
+                            replacement = buildReplacement(schemaComp, tableComp, column.name, "PassthroughGenerator")
+                            replacements.append(replacement)
+
+                    setSensitiveColumns(schemaComp, tableComp, sensitiveColumns)
+
+                    updated_replacements_dict: Dict[str, dict] = {}
+                    
+                    for replacement in replacements:
+                        key = f"{uuid.uuid4()}"
+                        updated_replacements_dict[key] = replacement.dict()
+                    
+                    print(json.dumps(updated_replacements_dict, indent=4))
+
+                    updateReplacements(schemaComp, tableComp, updated_replacements_dict)
+
+                    generate_data(updated_replacements_dict, columnKeys)
+
+
+
+
+    resp = ProvisioningStatus(status="", result="")
 
     return check_response(out_response=resp)
 
-def processRelationships(currComponent, relationships, components, relationshipType, witboostCompToIcePanelComp, existingConnections):
-    if len(relationships) > 0:
-        for relID in relationships:
-            for relaedComp in components:
-                if relaedComp.id == relID:
-                    connection = buildConnection(relationshipType, witboostCompToIcePanelComp[currComponent.id], witboostCompToIcePanelComp[relaedComp.id])
+def customizeMetadata(metadata, generatorId, column):
+    match generatorId:
+        case "NameGenerator":
+            metadata.update({
+                "preserveCapitalization": False,
+                "nameType": f'{column.masking.specific["part"]}'
+            })
+        case "CategoricalGenerator":
+            metadata.update({
+                "epsilon": 1,
+                "turinBound": 0
+            })
+        case "EmailGenerator":
+            metadata.update({
+                "replaceInvalidEmails": False,
+                "turinBound": 0
+            })
+        case "RandomTimestampGenerator":
+            metadata.update({
+                "minDate": "2024-06-17T23:49:09.3138384Z",
+                "maxDate": "2024-06-19T23:49:09.3138393Z",
+                "minTime": "2024-06-17T23:49:09.3138365Z",
+                "maxTime": "2024-06-19T23:49:09.3138374Z",
+                "dateTimeFormat": "yyyy-MM-ddTHH:mm:ss",
+                "unixTimestampFormat": "Seconds",
+            })
+        case "RandomIntegerGenerator":
+            metadata.update({
+                "min": column.masking.specific["minimum"],
+                "max": column.masking.specific["maximum"]
+            })
 
-                    matchedConnection = list(filter(lambda x: x.originId == connection.originId and x.targetId == connection.targetId and x.name == relationshipType, existingConnections))
-                    if len(matchedConnection) == 1:
-                        compId = patch_connection(matchedConnection[0].id, connection)     
-                    else:
-                        compId = post_connection(connection)
+    return metadata
 
-def rename_key(dictionary, old_key, new_key):
-    if old_key in dictionary:
-        dictionary[new_key] = dictionary.pop(old_key)
-    else:
-        raise KeyError(f"Key '{old_key}' not found in dictionary")
 
 @app.get(
     "/v1/provision/{token}/status",
@@ -268,3 +302,9 @@ def get_validation_status(
     resp = SystemErr(error="Response not yet implemented")
 
     return check_response(out_response=resp)
+
+def rename_key(dictionary, old_key, new_key):
+    if old_key in dictionary:
+        dictionary[new_key] = dictionary.pop(old_key)
+    else:
+        raise KeyError(f"Key '{old_key}' not found in dictionary")
